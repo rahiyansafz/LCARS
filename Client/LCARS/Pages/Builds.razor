@@ -1,0 +1,70 @@
+﻿@page "/builds"
+
+<PageTitle>LCARS | Builds</PageTitle>
+
+@using LCARS.Data
+
+@implements IDisposable
+@inject HttpClient Http
+
+<Header Text="Builds" />
+
+@if (builds is null)
+{
+    <Loading />
+}
+else
+{
+    <div class="container">
+        @foreach (var build in builds)
+        {
+            <div class="build">
+                <div class="left"></div>
+                <div class="label">@build.DisplayName</div>
+                <div class="data @GetStatusColor(build)"><a href="@build.WebUrl" target="_blank">@GetBuildStatus(build)</a></div>
+                <div class="right"></div>
+            </div>
+        }
+    </div>
+}
+
+@code {
+    private IEnumerable<Build>? builds;
+    private System.Timers.Timer refreshTimer = new(5000);
+
+    protected override async Task OnInitializedAsync()
+    {
+        await RefreshBuilds();
+
+        refreshTimer.Elapsed += async (sender, e) => await RefreshBuilds();
+        refreshTimer.Enabled = true;
+    }
+
+    private async Task RefreshBuilds()
+    {
+        builds = await Http.GetFromJsonAsync<IEnumerable<Build>>("/teamcity/builds");
+        await InvokeAsync(StateHasChanged);
+    }
+
+    private string GetBuildStatus(Build build)
+    {
+        if (build.Status == "finished")
+            return build.State == "SUCCESS" ? build.BuildNumber : "FAILED";
+        else // running
+            return $"{build.PercentageComplete}%";
+    }
+
+    private string GetStatusColor(Build build)
+    {
+        if (build.Status == "finished")
+            return build.State == "SUCCESS" ? "green" : "red";
+        else // running
+            return "yellow";
+    }
+
+    void IDisposable.Dispose()
+    {
+        refreshTimer.Enabled = false;
+        refreshTimer.Dispose();
+    }
+}

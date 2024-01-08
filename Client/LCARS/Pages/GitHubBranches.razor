@@ -1,0 +1,45 @@
+﻿@page "/github/branches"
+
+<PageTitle>LCARS | GitHub | Branches</PageTitle>
+
+@using LCARS.Data
+
+@implements IDisposable
+@inject HttpClient Http
+
+<Header Text="GitHub Branches" />
+
+<Branches Data="@branches"/>
+
+@code {
+    private BranchSummary? branches;
+    private System.Timers.Timer refreshTimer = new(10000);
+
+    protected override async Task OnInitializedAsync()
+    {
+        await RefreshBranches();
+
+        refreshTimer.Elapsed += async (sender, e) => await RefreshBranches();
+        refreshTimer.Enabled = true;
+    }
+
+    private async Task RefreshBranches()
+    {
+        var settings = await Http.GetFromJsonAsync<Settings>("settings");
+        var branchData = await Http.GetFromJsonAsync<IEnumerable<BranchSummary.RepositoryModel>>("/github/branches");
+
+        branches = new BranchSummary
+            {
+                Repositories = branchData,
+                Threshold = settings.GitHubSettings.BranchThreshold
+            };
+
+        StateHasChanged();
+    }
+
+    void IDisposable.Dispose()
+    {
+        refreshTimer.Enabled = false;
+        refreshTimer.Dispose();
+    }
+}
